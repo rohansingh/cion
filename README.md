@@ -37,16 +37,31 @@ release:
       key4: val4
 ```
 
-Container Specs
+Job Container
 ---
-
-### Job container
 
 For each commit, we generate a single job. All work for the commit is done inside this single Docker container.
 
-The job container runs Docker-in-Docker, so each build step is still executed in its own container. However, the working directory can live in the main container and be bind-mounted into each subcontainer.
+The job container runs a Docker-in-Docker container, and each build step is still executed in its own container. However, the working directory can live in the main container and be bind-mounted into each subcontainer.
 
-### Build container
+### Docker-in-Docker details
+
+This is roughly how we run the job container:
+
+```bash
+$ docker run -v /var/run/docker.sock:/var/run/docker.sock
+```
+
+There are two things to note here:
+
+1. The job container needs access to the host's Docker endpoint. It uses this to build and launch a Docker-in-Docker (DinD) container. The endpoint for the DinD instance is passed to the build container, to allow it to safely build and push Docker images.
+
+2. The job container also uses the host's Docker endpoint to launch the build and release containers.
+
+Note that the build and release containers are *not* run using Docker-in-Docker, they are first-class containers on the host machine. However, they are not privileged containers, and the Docker instance used by the build container only exists for the lifetime of the build.
+
+Build Container
+---
 
 Environment variables that are passed to the build container:
 
@@ -56,11 +71,15 @@ Environment variables that are passed to the build container:
 * `ARTIFACTS_DIR`<br />
   The path to the artifacts directory.
 
+* `DOCKER_HOST`<br />
+  Endpoint for a Docker instance that the build container can use to build or push Docker images.
+
 * Additional environment variables from the user's config.
 
 The expectation is that the build container will build the project and place generated artifacts in the `ARTIFACTS_DIR`.
 
-### Release container
+Release Container
+---
 
 Environment variables that are passed to the release container:
 
