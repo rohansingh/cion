@@ -27,26 +27,26 @@ All configuration is specified in `.cion.yml` in the project. Here's an example:
 
 ```yaml
 build:
-  - image: rohan/my-build-image
-  - env: # extra environment variables for the build container
-      key1: val1
-      key2: val2
+  image: rohan/my-build-image
+  env: # extra environment variables for the build container
+    key1: val1
+    key2: val2
 
 release:
-  - image: rohan/my-release-image
-  - cmd: some-optional-command
-  - env: # extra environment variables for the release container
-      key3: val3
-      key4: val4
+  image: rohan/my-release-image
+  cmd: some-optional-command
+  env: # extra environment variables for the release container
+    key3: val3
+    key4: val4
 
 services:
   docker:
-  - image: tianon/dind
-  - privileged: true
+    image: tianon/dind
+    privileged: true
 
   some_service:
-  - image: rohan/some-other-image
-  - env: # any environment variables for the service container
+    image: rohan/some-other-image
+    env: # any environment variables for the service container
       key6: val6
 ```
 
