@@ -16,11 +16,11 @@ type InMemoryJobStore struct {
 	jobsByNumber       map[string]map[uint64]*Job
 }
 
-func (s *InMemoryJobStore) GetByID(id uint) (*Job, error) {
-	return s.jobsByID[uint64(id)], nil
+func (s *InMemoryJobStore) GetByID(id uint64) (*Job, error) {
+	return s.jobsByID[id], nil
 }
 
-func (s *InMemoryJobStore) GetByNumber(owner, repo, branch string, number uint) (*Job, error) {
+func (s *InMemoryJobStore) GetByNumber(owner, repo, branch string, number uint64) (*Job, error) {
 	jobs, err := s.List(owner, repo, branch)
 	if err != nil {
 		return nil, err
@@ -55,8 +55,8 @@ func (s *InMemoryJobStore) Save(j *Job) error {
 	id := atomic.AddUint64(s.jobCounter, 1)
 	number := atomic.AddUint64(s.jobCounterByBranch[getKey(j.Owner, j.Repo, j.Branch)], 1)
 
-	j.ID = uint(id)
-	j.Number = uint(number)
+	j.ID = id
+	j.Number = number
 
 	s.jobsByID[id] = j
 	s.jobsByNumber[getKey(j.Owner, j.Repo, j.Branch)][number] = j
@@ -86,6 +86,6 @@ func (wl WriterLogger) Write(p []byte) (int, error) {
 
 func (wl WriterLogger) WriteStep(name string) error {
 	s := fmt.Sprintln("CION:", name)
-	_, err := io.WriteString(wl.w, s)
+	_, err := wl.Write([]byte(s))
 	return err
 }

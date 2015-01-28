@@ -5,10 +5,10 @@ import "io"
 // JobStore write and reads jobs and job logs from persistent storage.
 type JobStore interface {
 	// GetByID gets a job by its unique ID.
-	GetByID(id uint) (*Job, error)
+	GetByID(id uint64) (*Job, error)
 
 	// GetByNumber gets a job for the given owner/repo/branch by its number.
-	GetByNumber(owner, repo, branch string, number uint) (*Job, error)
+	GetByNumber(owner, repo, branch string, number uint64) (*Job, error)
 
 	// Lists gets all the jobs for the given owner/repo/branch.
 	List(owner, repo, branch string) ([]*Job, error)
