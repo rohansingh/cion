@@ -2,10 +2,6 @@ cion
 ===
 A commit-to-deploy system based on Docker containers.
 
-Job Queue
----
-If we can abstract all work into a Docker container, then the whole commit-to-deploy system can be represented by a single queue of containers that need to be run.
-
 Build Steps
 ---
 These are the logical steps needed to go from commit to deploy:
@@ -57,17 +53,9 @@ Job Runner
 
 For each commit, we generate a single job. The job runner pulls the project from Git, parses the `.cion.yml` configuration, and runs the service, build, and release containers.
 
-This is roughly how we execute the job runner:
-
-```bash
-$ docker run -v /var/run/docker.sock:/var/run/docker.sock cion-job-runner
-```
-
-We do this because the job runner needs access to the host's Docker endpoint to launch the other containers for the build.
-
 ### Working directory container
 
-Prior to running the build, and release containers, the job runner actually launches a data container to contain the working directory for the build. This container is also linked to the build and release containers.
+Prior to running the service, build, and release containers, the job runner actually launches a data container to contain the working directory for the build. This container is also linked to the build and release containers.
 
 Service Containers
 ---
