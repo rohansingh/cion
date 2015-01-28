@@ -71,12 +71,12 @@ func NewJob(owner, repo, branch, sha string) Job {
 func (r JobRequest) Run() {
 	jl := r.Store.GetLogger(r.Job)
 
-	if err := runJob(r.Job, r.Executor, jl); err != nil {
+	if err := runJob(r.Job, r.Executor, r.Store, jl); err != nil {
 		io.WriteString(jl, fmt.Sprintf("ERROR: %v", err))
 	}
 }
 
-func runJob(j *Job, e Executor, jl JobLogger) error {
+func runJob(j *Job, e Executor, s JobStore, jl JobLogger) error {
 	jl.WriteStep("fetch sources")
 
 	if j.SHA == "" {
@@ -89,6 +89,7 @@ func runJob(j *Job, e Executor, jl JobLogger) error {
 		}
 
 		j.SHA = *com.SHA
+		s.Save(j)
 	}
 
 	wd, err := startWorkdirContainer(j.Owner, j.Repo, j.SHA, e, jl)

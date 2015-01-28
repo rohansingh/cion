@@ -4,20 +4,26 @@ import (
 	"fmt"
 	"io"
 	"os"
-	"sync/atomic"
 )
 
 // InMemoryJobStore is a mock JobStore that only stores jobs in memory and writes logs directly
 // to stdout. It is only meant to be used for testing.
 type InMemoryJobStore struct {
-	jobCounter         *uint64
-	jobCounterByBranch map[string]*uint64
-	jobsByID           map[uint64]*Job
-	jobsByNumber       map[string]map[uint64]*Job
+	jobCounter         uint64
+	jobCounterByBranch map[string]uint64
+	jobs               map[uint64]*Job
+}
+
+func NewInMemoryJobStore() *InMemoryJobStore {
+	return &InMemoryJobStore{
+		jobCounter:         0,
+		jobCounterByBranch: make(map[string]uint64),
+		jobs:               make(map[uint64]*Job),
+	}
 }
 
 func (s *InMemoryJobStore) GetByID(id uint64) (*Job, error) {
-	return s.jobsByID[id], nil
+	return s.jobs[id], nil
 }
 
 func (s *InMemoryJobStore) GetByNumber(owner, repo, branch string, number uint64) (*Job, error) {
@@ -36,11 +42,12 @@ func (s *InMemoryJobStore) GetByNumber(owner, repo, branch string, number uint64
 }
 
 func (s *InMemoryJobStore) List(owner, repo, branch string) ([]*Job, error) {
-	jbn := s.jobsByNumber[getKey(owner, repo, branch)]
-	l := make([]*Job, len(jbn))
+	var l []*Job
 
-	for _, j := range jbn {
-		l = append(l, j)
+	for _, j := range s.jobs {
+		if j.Owner == owner && j.Repo == repo && j.Branch == branch {
+			l = append(l, j)
+		}
 	}
 
 	return l, nil
@@ -52,24 +59,24 @@ func (s *InMemoryJobStore) Save(j *Job) error {
 		return nil
 	}
 
-	id := atomic.AddUint64(s.jobCounter, 1)
-	number := atomic.AddUint64(s.jobCounterByBranch[getKey(j.Owner, j.Repo, j.Branch)], 1)
+	// obviously not thread-safe
+	s.jobCounter++
+	id := s.jobCounter
+
+	k := j.Owner + ":" + j.Repo + ":" + j.Branch
+	s.jobCounterByBranch[k]++
+	number := s.jobCounterByBranch[k]
 
 	j.ID = id
 	j.Number = number
 
-	s.jobsByID[id] = j
-	s.jobsByNumber[getKey(j.Owner, j.Repo, j.Branch)][number] = j
+	s.jobs[id] = j
 
 	return nil
 }
 
 func (s *InMemoryJobStore) GetLogger(j *Job) JobLogger {
 	return NewWriterLogger(os.Stdout)
-}
-
-func getKey(owner, repo, branch string) string {
-	return owner + ":" + repo + ":" + branch
 }
 
 type WriterLogger struct {

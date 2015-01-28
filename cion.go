@@ -22,7 +22,7 @@ func Run(dockerEndpoint, dockerCertPath string) {
 		log.Fatalf("error initializing executor: %v", err)
 	}
 
-	js = &InMemoryJobStore{}
+	js = NewInMemoryJobStore()
 
 	repo := web.New()
 	goji.Handle("/:owner/:repo/*", repo)
