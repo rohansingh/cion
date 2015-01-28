@@ -226,7 +226,7 @@ func run(cc ContainerConfig, services map[string]string, wd string,
 		links = append(links, s+":"+sc)
 	}
 
-	env := make([]string, len(cc.Env)+2)
+	env := make([]string, 0, len(cc.Env)+2)
 	copy(env, cc.Env)
 
 	env = append(env, "BUILD_DIR=/cion/build")
