@@ -32,8 +32,8 @@ type Job struct {
 	Branch string
 	SHA    string
 
-	StartedAt time.Time
-	EndedAt   time.Time
+	StartedAt *time.Time
+	EndedAt   *time.Time
 
 	Success bool
 }
@@ -53,17 +53,18 @@ type ContainerConfig struct {
 	Privileged bool
 }
 
-func NewJob(owner, repo, branch, sha string) Job {
+func NewJob(owner, repo, branch, sha string) *Job {
 	if branch == "" && sha == "" {
 		branch = "master"
 	}
 
-	return Job{
+	t := time.Now()
+	return &Job{
 		Owner:     owner,
 		Repo:      repo,
 		Branch:    branch,
 		SHA:       sha,
-		StartedAt: time.Now(),
+		StartedAt: &t,
 	}
 }
 
