@@ -29,14 +29,18 @@ func Run(dockerEndpoint, dockerCertPath, cionDbPath string) {
 		log.Fatalf("error initializing job store: %v", err)
 	}
 
-	goji.Get("/", ListOwnersHandler)
-	goji.Get("/:owner", ListReposHandler)
-	goji.Get("/:owner/:repo", ListBranchesHandler)
+	api := web.New()
+	api.Use(middleware.SubRouter)
+	goji.Handle("/api/*", api)
+
+	api.Get("/", ListOwnersHandler)
+	api.Get("/:owner", ListReposHandler)
+	api.Get("/:owner/:repo", ListBranchesHandler)
 
 	repo := web.New()
 	repo.Use(middleware.SubRouter)
 
-	goji.Handle("/:owner/:repo/*", repo)
+	api.Handle("/:owner/:repo/*", repo)
 	repo.Post("/new", NewJobHandler)
 	repo.Post(regexp.MustCompile("^/commit/(?P<sha>.+)/new"), NewJobHandler)
 	repo.Post(regexp.MustCompile("^/branch/(?P<branch>.+)/new"), NewJobHandler)
