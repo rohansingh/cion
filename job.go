@@ -138,7 +138,7 @@ func runJob(j *Job, e Executor, s JobStore, jl JobLogger) error {
 
 	if jc.Release.Image != "" {
 		jl.WriteStep("release")
-		return run(jc.Release, nil, wd, e, jl)
+		return run(jc.Release, services, wd, e, jl)
 	} else {
 		return nil
 	}
