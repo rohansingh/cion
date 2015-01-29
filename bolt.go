@@ -324,7 +324,7 @@ func saveJobRef(id, number uint64, owner, repo, branch string, b *bolt.Bucket) e
 
 func Uint64ToBytes(x uint64) []byte {
 	b := make([]byte, 8)
-	binary.LittleEndian.PutUint64(b, x)
+	binary.BigEndian.PutUint64(b, x)
 
 	return b
 }
