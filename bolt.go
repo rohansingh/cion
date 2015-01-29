@@ -1,6 +1,7 @@
 package cion
 
 import (
+	"code.google.com/p/snappy-go/snappy"
 	"encoding/binary"
 	"encoding/json"
 	"errors"
@@ -148,7 +149,13 @@ func (l BoltJobLogger) Write(p []byte) (int, error) {
 			return err
 		}
 
-		return b.Logs.Put(Uint64ToBytes(i), p)
+		key := Uint64ToBytes(i)
+		val, err := snappy.Encode(nil, p)
+		if err != nil {
+			return err
+		}
+
+		return b.Logs.Put(key, val)
 	}); err != nil {
 		return 0, err
 	}
@@ -166,7 +173,12 @@ func (l BoltJobLogger) WriteTo(w io.Writer) (int64, error) {
 		}
 
 		return b.Logs.ForEach(func(key, val []byte) error {
-			c, err := w.Write(val)
+			s, err := snappy.Decode(nil, val)
+			if err != nil {
+				return err
+			}
+
+			c, err := w.Write(s)
 			n = n + int64(c)
 
 			return err
