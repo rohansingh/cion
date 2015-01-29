@@ -1,6 +1,7 @@
 package cion
 
 import (
+	"code.google.com/p/go-uuid/uuid"
 	"github.com/fsouza/go-dockerclient"
 	"io"
 	"path/filepath"
@@ -43,20 +44,28 @@ func (e DockerExecutor) Run(opts RunContainerOpts) (string, error) {
 		return "", err
 	}
 
+	ep := make(map[docker.Port]struct{}, len(opts.Ports))
+	for _, p := range opts.Ports {
+		ep[docker.Port(p)] = struct{}{}
+	}
+
 	cco := docker.CreateContainerOptions{
+		Name: uuid.New(),
 		Config: &docker.Config{
-			Image:      opts.Image,
-			Cmd:        opts.Cmd,
-			Env:        opts.Env,
-			Volumes:    vols,
-			WorkingDir: opts.WorkingDir,
+			Image:        opts.Image,
+			Cmd:          opts.Cmd,
+			Env:          opts.Env,
+			ExposedPorts: ep,
+			Volumes:      vols,
+			WorkingDir:   opts.WorkingDir,
 		},
 	}
 
 	hc := docker.HostConfig{
-		Links:       opts.Links,
-		Privileged:  opts.Privileged,
-		VolumesFrom: opts.VolumesFrom,
+		Links:           opts.Links,
+		Privileged:      opts.Privileged,
+		VolumesFrom:     opts.VolumesFrom,
+		PublishAllPorts: true,
 	}
 
 	c, err := e.client.CreateContainer(cco)
@@ -68,7 +77,7 @@ func (e DockerExecutor) Run(opts RunContainerOpts) (string, error) {
 		return "", err
 	}
 
-	return c.ID, nil
+	return c.Name, nil
 }
 
 func (e DockerExecutor) Attach(id string, stdout io.Writer, stderr io.Writer) error {

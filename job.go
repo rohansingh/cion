@@ -57,6 +57,7 @@ type ContainerConfig struct {
 	Image      string
 	Cmd        []string
 	Env        []string
+	Ports      []string
 	Privileged bool
 }
 
@@ -238,9 +239,11 @@ func startServices(jc JobConfig, wd string, e Executor) (map[string]string, erro
 
 	for s, cc := range jc.Services {
 		opts := RunContainerOpts{
-			Image: cc.Image,
-			Cmd:   cc.Cmd,
-			Env:   cc.Env,
+			Image:      cc.Image,
+			Cmd:        cc.Cmd,
+			Env:        cc.Env,
+			Ports:      cc.Ports,
+			Privileged: cc.Privileged,
 		}
 
 		c, err := e.Run(opts)
@@ -256,9 +259,9 @@ func startServices(jc JobConfig, wd string, e Executor) (map[string]string, erro
 
 func run(cc ContainerConfig, services map[string]string, wd string,
 	e Executor, lw io.Writer) error {
-	links := make([]string, len(services))
+	links := make([]string, 0, len(services))
 	for s, sc := range services {
-		links = append(links, s+":"+sc)
+		links = append(links, sc+":"+s)
 	}
 
 	env := make([]string, 0, len(cc.Env)+2)
@@ -270,8 +273,9 @@ func run(cc ContainerConfig, services map[string]string, wd string,
 	opts := RunContainerOpts{
 		Image:       cc.Image,
 		Cmd:         cc.Cmd,
-		Env:         env,
+		Ports:       cc.Ports,
 		Privileged:  cc.Privileged,
+		Env:         env,
 		Links:       links,
 		VolumesFrom: []string{wd},
 		WorkingDir:  BuildDir,

@@ -44,4 +44,7 @@ type RunContainerOpts struct {
 
 	// WorkingDir is the working directory in the container.
 	WorkingDir string
+
+	// Ports is a list of container ports to expose, in the format <port>/<tcp|udp>.
+	Ports []string
 }

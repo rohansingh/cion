@@ -24,26 +24,22 @@ All configuration is specified in `.cion.yml` in the project. Here's an example:
 ```yaml
 build:
   image: rohan/my-build-image
-  env: # extra environment variables for the build container
-    key1: val1
-    key2: val2
 
 release:
   image: rohan/my-release-image
   cmd: some-optional-command
-  env: # extra environment variables for the release container
-    key3: val3
-    key4: val4
 
 services:
   docker:
-    image: tianon/dind
+    image: jpetazzo/dind
     privileged: true
+    env: # any environment variables for the service container
+      - PORT=2375
+    ports: # list af ports to expose from the service container
+      - 2375/tcp
 
   some_service:
     image: rohan/some-other-image
-    env: # any environment variables for the service container
-      key6: val6
 ```
 
 The specified build and release containers are run for the build and release steps of the build, respectively.
