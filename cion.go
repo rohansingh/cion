@@ -38,6 +38,7 @@ func Run(dockerEndpoint, dockerCertPath, cionDbPath string) {
 	repo.Post(regexp.MustCompile("^/branch/(?P<branch>.+)/new"), NewJobHandler)
 	repo.Get(regexp.MustCompile("^/branch/(?P<branch>.+)/(?P<number>[0-9]+)/log"), GetLogHandler)
 	repo.Get(regexp.MustCompile("^/branch/(?P<branch>.+)/(?P<number>[0-9]+)"), GetJobHandler)
+	repo.Get(regexp.MustCompile("^/branch/(?P<branch>.+)"), ListJobsHandler)
 
 	goji.Serve()
 }
@@ -94,4 +95,18 @@ func GetLogHandler(c web.C, w http.ResponseWriter, r *http.Request) {
 	if _, err := js.GetLogger(j).WriteTo(w); err != nil {
 		log.Println("error getting job logs:", err)
 	}
+}
+
+func ListJobsHandler(c web.C, w http.ResponseWriter, r *http.Request) {
+	owner := c.URLParams["owner"]
+	repo := c.URLParams["repo"]
+	branch := c.URLParams["branch"]
+
+	l, err := js.List(owner, repo, branch)
+	if err != nil {
+		log.Println("error getting job list:", err)
+	}
+
+	b, _ := json.MarshalIndent(l, "", "\t")
+	w.Write(b)
 }

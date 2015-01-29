@@ -110,7 +110,12 @@ func (s *BoltJobStore) List(owner, repo, branch string) ([]*Job, error) {
 		}
 
 		return b.Branch.ForEach(func(key, val []byte) error {
-			var j *Job
+			j := &Job{}
+
+			if len(val) == 0 {
+				return nil
+			}
+
 			if err := json.Unmarshal(val, j); err != nil {
 				return err
 			}
@@ -294,7 +299,7 @@ func getBuckets(ref boltJobRef, tx *bolt.Tx) (*buckets, error) {
 	}
 
 	if ref.Number != 0 {
-		lbn := string(ref.Number) + "_Logs"
+		lbn := "logs_" + string(ref.Number)
 
 		if tx.Writable() {
 			lb, err = bb.CreateBucketIfNotExists([]byte(lbn))
