@@ -29,6 +29,10 @@ func Run(dockerEndpoint, dockerCertPath, cionDbPath string) {
 		log.Fatalf("error initializing job store: %v", err)
 	}
 
+	goji.Get("/", ListOwnersHandler)
+	goji.Get("/:owner", ListReposHandler)
+	goji.Get("/:owner/:repo", ListBranchesHandler)
+
 	repo := web.New()
 	repo.Use(middleware.SubRouter)
 
@@ -105,6 +109,36 @@ func ListJobsHandler(c web.C, w http.ResponseWriter, r *http.Request) {
 	l, err := js.List(owner, repo, branch)
 	if err != nil {
 		log.Println("error getting job list:", err)
+	}
+
+	b, _ := json.MarshalIndent(l, "", "\t")
+	w.Write(b)
+}
+
+func ListOwnersHandler(c web.C, w http.ResponseWriter, r *http.Request) {
+	l, err := js.ListOwners()
+	if err != nil {
+		log.Println("error getting owners list:", err)
+	}
+
+	b, _ := json.MarshalIndent(l, "", "\t")
+	w.Write(b)
+}
+
+func ListReposHandler(c web.C, w http.ResponseWriter, r *http.Request) {
+	l, err := js.ListRepos(c.URLParams["owner"])
+	if err != nil {
+		log.Println("error getting repos list:", err)
+	}
+
+	b, _ := json.MarshalIndent(l, "", "\t")
+	w.Write(b)
+}
+
+func ListBranchesHandler(c web.C, w http.ResponseWriter, r *http.Request) {
+	l, err := js.ListBranches(c.URLParams["owner"], c.URLParams["repo"])
+	if err != nil {
+		log.Println("error getting branch list:", err)
 	}
 
 	b, _ := json.MarshalIndent(l, "", "\t")

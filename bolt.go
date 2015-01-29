@@ -11,7 +11,8 @@ import (
 )
 
 var (
-	JobsBucket = []byte("jobs")
+	JobsBucket    = []byte("jobs")
+	JobRefsBucket = []byte("jobrefs")
 )
 
 type BoltJobStore struct {
@@ -53,13 +54,13 @@ func (s *BoltJobStore) GetByID(id uint64) (*Job, error) {
 	var ref boltJobRef
 
 	err := s.db.View(func(tx *bolt.Tx) error {
-		jb, err := tx.CreateBucketIfNotExists(JobsBucket)
+		jrb, err := tx.CreateBucketIfNotExists(JobRefsBucket)
 		if err != nil {
 			return err
 		}
 
 		key := Uint64ToBytes(id)
-		return json.Unmarshal(jb.Get(key), &ref)
+		return json.Unmarshal(jrb.Get(key), &ref)
 	})
 	if err != nil {
 		return nil, err
@@ -92,6 +93,81 @@ func (s *BoltJobStore) GetByNumber(owner, repo, branch string, number uint64) (*
 	}
 
 	return j, nil
+}
+
+func (s *BoltJobStore) ListOwners() ([]string, error) {
+	var l []string
+
+	if err := s.db.View(func(tx *bolt.Tx) error {
+		jb := tx.Bucket(JobsBucket)
+		if jb == nil {
+			return errors.New("jobs bucket doesn't exist")
+		}
+
+		return jb.ForEach(func(key, val []byte) error {
+			l = append(l, string(key))
+			return nil
+		})
+	}); err != nil {
+		return nil, err
+	}
+
+	return l, nil
+}
+
+func (s *BoltJobStore) ListRepos(owner string) ([]string, error) {
+	var l []string
+
+	if err := s.db.View(func(tx *bolt.Tx) error {
+		jb := tx.Bucket(JobsBucket)
+		if jb == nil {
+			return errors.New("jobs bucket doesn't exist")
+		}
+
+		ob := jb.Bucket([]byte(owner))
+		if ob == nil {
+			return errors.New("owner bucket doesn't exist")
+		}
+
+		return ob.ForEach(func(key, val []byte) error {
+			l = append(l, string(key))
+			return nil
+		})
+	}); err != nil {
+		return nil, err
+	}
+
+	return l, nil
+}
+
+func (s *BoltJobStore) ListBranches(owner, repo string) ([]string, error) {
+	var l []string
+
+	if err := s.db.View(func(tx *bolt.Tx) error {
+		jb := tx.Bucket(JobsBucket)
+		if jb == nil {
+			return errors.New("jobs bucket doesn't exist")
+		}
+
+		ob := jb.Bucket([]byte(owner))
+		if ob == nil {
+			return errors.New("owner bucket doesn't exist")
+		}
+
+		rb := ob.Bucket([]byte(repo))
+		if rb == nil {
+			return errors.New("repo bucket doesn't exist")
+		}
+
+		return rb.ForEach(func(key, val []byte) error {
+			l = append(l, string(key))
+			return nil
+		})
+	}); err != nil {
+		return nil, err
+	}
+
+	return l, nil
 }
 
 func (s *BoltJobStore) List(owner, repo, branch string) ([]*Job, error) {
@@ -235,7 +311,7 @@ func (s *BoltJobStore) Save(j *Job) error {
 			j.ID, j.Number = id, n
 
 			// save a reference from the job's unique ID to its home bucket
-			if err := saveJobRef(j.ID, j.Number, j.Owner, j.Repo, j.Branch, b.Jobs); err != nil {
+			if err := saveJobRef(j.ID, j.Number, j.Owner, j.Repo, j.Branch, tx); err != nil {
 				return err
 			}
 		}
@@ -322,7 +398,12 @@ func getBuckets(ref boltJobRef, tx *bolt.Tx) (*buckets, error) {
 	}, nil
 }
 
-func saveJobRef(id, number uint64, owner, repo, branch string, b *bolt.Bucket) error {
+func saveJobRef(id, number uint64, owner, repo, branch string, tx *bolt.Tx) error {
+	b, err := tx.CreateBucketIfNotExists(JobRefsBucket)
+	if err != nil {
+		return err
+	}
+
 	ref := boltJobRef{
 		Owner:  owner,
 		Repo:   repo,

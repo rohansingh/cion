@@ -10,7 +10,16 @@ type JobStore interface {
 	// GetByNumber gets a job for the given owner/repo/branch by its number.
 	GetByNumber(owner, repo, branch string, number uint64) (*Job, error)
 
-	// Lists gets all the jobs for the given owner/repo/branch.
+	// ListOwners returns a list of all the repo owners that have jobs.
+	ListOwners() ([]string, error)
+
+	// ListRepos returns a list of all the repos for a given owner.
+	ListRepos(owner string) ([]string, error)
+
+	// ListBranches returns a list of all the branches for a given owner/repo.
+	ListBranches(owner, repo string) ([]string, error)
+
+	// List gets all the jobs for the given owner/repo/branch.
 	List(owner, repo, branch string) ([]*Job, error)
 
 	// Save persists a job to storage. If the job doesn't have an ID yet, it is assigned a
