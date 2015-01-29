@@ -82,6 +82,15 @@ func (r JobRequest) Run() {
 	if err := runJob(r.Job, r.Executor, r.Store, jl); err != nil {
 		log.Println("job execution error:", err)
 		io.WriteString(jl, fmt.Sprintf("ERROR: %v", err))
+	} else {
+		r.Job.Success = true
+	}
+
+	t := time.Now()
+	r.Job.EndedAt = &t
+
+	if err := r.Store.Save(r.Job); err != nil {
+		log.Println("error saving completed job:", err)
 	}
 }
 
