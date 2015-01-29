@@ -7,12 +7,19 @@ import (
 	"github.com/google/go-github/github"
 	"gopkg.in/yaml.v2"
 	"io"
+	"log"
 	"time"
 )
 
 const (
 	// GitImage is the Docker image used for the working directory and fetching sources.
 	GitImage = "radial/busyboxplus:git"
+
+	// BuildDir is the path for project sources in the working directory container.
+	BuildDir = "/cion/build"
+
+	// ArtifactsDir is the path to the artifacts directory in the working directory container.
+	ArtifactsDir = "/cion/artifacts"
 )
 
 // JobRequest defines a job that needs to be run and the dependencies needed to run it.
@@ -73,6 +80,7 @@ func (r JobRequest) Run() {
 	jl := r.Store.GetLogger(r.Job)
 
 	if err := runJob(r.Job, r.Executor, r.Store, jl); err != nil {
+		log.Println("job execution error:", err)
 		io.WriteString(jl, fmt.Sprintf("ERROR: %v", err))
 	}
 }
@@ -137,16 +145,20 @@ func startWorkdirContainer(owner, repo, sha string, e Executor, lw io.Writer) (s
 	// command to fetch sources and then read .cion.yml to stderr
 	fetchCmd := []string{
 		"sh", "-c",
-		`git clone "$CLONE_URL" /cion/build && \
-			cd /cion/build && \
+		`git clone "$CLONE_URL" "$BUILD_DIR" && \
+			cd "$BUILD_DIR" && \
 			git checkout "$REFSPEC"`,
 	}
 
 	opts := RunContainerOpts{
-		Image:   GitImage,
-		Cmd:     fetchCmd,
-		Volumes: []string{"/cion/build", "/cion/artifacts"},
+		Image: GitImage,
+		Cmd:   fetchCmd,
+		Volumes: []string{
+			BuildDir,
+			ArtifactsDir,
+		},
 		Env: []string{
+			"BUILD_DIR=" + BuildDir,
 			"CLONE_URL=" + *r.CloneURL,
 			"REFSPEC=" + sha,
 		},
@@ -163,14 +175,21 @@ func startWorkdirContainer(owner, repo, sha string, e Executor, lw io.Writer) (s
 		return "", err
 	}
 
+	if r, err := e.Wait(wd); err != nil {
+		return "", err
+	} else if r != 0 {
+		return "", errors.New("non-zero exit status when fetching sources")
+	}
+
 	return wd, nil
 }
 
 func parseJobConfig(wd string, e Executor, lw io.Writer) (*JobConfig, error) {
 	opts := RunContainerOpts{
 		Image:       GitImage,
-		Cmd:         []string{"cat", "/cion/build/.cion.yml"},
+		Cmd:         []string{"cat", ".cion.yml"},
 		VolumesFrom: []string{wd},
+		WorkingDir:  BuildDir,
 	}
 
 	c, err := e.Run(opts)
@@ -181,9 +200,14 @@ func parseJobConfig(wd string, e Executor, lw io.Writer) (*JobConfig, error) {
 	}
 
 	var stdout bytes.Buffer
-	err = e.Attach(c, io.MultiWriter(&stdout, lw), lw)
-	if err != nil {
+	if err := e.Attach(c, io.MultiWriter(&stdout, lw), lw); err != nil {
 		return nil, err
+	}
+
+	if r, err := e.Wait(c); err != nil {
+		return nil, err
+	} else if r != 0 {
+		return nil, errors.New("unable to read job config file")
 	}
 
 	// if things worked out, the .cion.yml should have been read into stdout
@@ -231,8 +255,8 @@ func run(cc ContainerConfig, services map[string]string, wd string,
 	env := make([]string, 0, len(cc.Env)+2)
 	copy(env, cc.Env)
 
-	env = append(env, "BUILD_DIR=/cion/build")
-	env = append(env, "ARTIFACTS_DIR=/cion/artifacts")
+	env = append(env, "BUILD_DIR="+BuildDir)
+	env = append(env, "ARTIFACTS_DIR="+ArtifactsDir)
 
 	opts := RunContainerOpts{
 		Image:       cc.Image,
@@ -241,7 +265,7 @@ func run(cc ContainerConfig, services map[string]string, wd string,
 		Privileged:  cc.Privileged,
 		Links:       links,
 		VolumesFrom: []string{wd},
-		WorkingDir:  "/cion/build",
+		WorkingDir:  BuildDir,
 	}
 
 	c, err := e.Run(opts)
@@ -249,5 +273,13 @@ func run(cc ContainerConfig, services map[string]string, wd string,
 		return err
 	}
 
-	return e.Attach(c, lw, lw)
+	if err := e.Attach(c, lw, lw); err != nil {
+		return err
+	}
+
+	if r, err := e.Wait(c); r != 0 {
+		return errors.New("non-zero exit status from container")
+	} else {
+		return err
+	}
 }

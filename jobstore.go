@@ -24,6 +24,7 @@ type JobStore interface {
 // JobLogger provides an io.Writer interface for writing build logs for a job.
 type JobLogger interface {
 	io.Writer
+	io.WriterTo
 
 	// WriteStep writes a transition to a new build step to the log. All subsequent writes are
 	// assumed to be part of the new build step, until another new step is written.

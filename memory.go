@@ -91,6 +91,11 @@ func (wl WriterLogger) Write(p []byte) (int, error) {
 	return wl.w.Write(p)
 }
 
+func (wl WriterLogger) WriteTo(w io.Writer) (int64, error) {
+	// doesn't support reading
+	return 0, nil
+}
+
 func (wl WriterLogger) WriteStep(name string) error {
 	s := fmt.Sprintln("CION:", name)
 	_, err := wl.Write([]byte(s))

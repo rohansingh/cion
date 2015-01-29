@@ -16,7 +16,7 @@ var (
 	js JobStore
 )
 
-func Run(dockerEndpoint, dockerCertPath string) {
+func Run(dockerEndpoint, dockerCertPath, cionDbPath string) {
 	var err error
 
 	e, err = NewDockerExecutor(dockerEndpoint, dockerCertPath)
@@ -24,7 +24,10 @@ func Run(dockerEndpoint, dockerCertPath string) {
 		log.Fatalf("error initializing executor: %v", err)
 	}
 
-	js = NewInMemoryJobStore()
+	js, err = NewBoltJobStore(cionDbPath)
+	if err != nil {
+		log.Fatalf("error initializing job store: %v", err)
+	}
 
 	repo := web.New()
 	repo.Use(middleware.SubRouter)
@@ -33,6 +36,7 @@ func Run(dockerEndpoint, dockerCertPath string) {
 	repo.Post("/new", NewJobHandler)
 	repo.Post(regexp.MustCompile("^/commit/(?P<sha>.+)/new"), NewJobHandler)
 	repo.Post(regexp.MustCompile("^/branch/(?P<branch>.+)/new"), NewJobHandler)
+	repo.Get(regexp.MustCompile("^/branch/(?P<branch>.+)/(?P<number>[0-9]+)/log"), GetLogHandler)
 	repo.Get(regexp.MustCompile("^/branch/(?P<branch>.+)/(?P<number>[0-9]+)"), GetJobHandler)
 
 	goji.Serve()
@@ -45,7 +49,9 @@ func NewJobHandler(c web.C, w http.ResponseWriter, r *http.Request) {
 	sha := c.URLParams["sha"]
 
 	j := NewJob(owner, repo, branch, sha)
-	js.Save(j)
+	if err := js.Save(j); err != nil {
+		log.Println("error saving job:", err)
+	}
 
 	jr := &JobRequest{
 		Job:      j,
@@ -65,8 +71,27 @@ func GetJobHandler(c web.C, w http.ResponseWriter, r *http.Request) {
 	branch := c.URLParams["branch"]
 	number, _ := strconv.ParseUint(c.URLParams["number"], 0, 64)
 
-	j, _ := js.GetByNumber(owner, repo, branch, number)
+	j, err := js.GetByNumber(owner, repo, branch, number)
+	if err != nil {
+		log.Println("error getting job:", err)
+	}
 
 	b, _ := json.MarshalIndent(j, "", "\t")
 	w.Write(b)
+}
+
+func GetLogHandler(c web.C, w http.ResponseWriter, r *http.Request) {
+	owner := c.URLParams["owner"]
+	repo := c.URLParams["repo"]
+	branch := c.URLParams["branch"]
+	number, _ := strconv.ParseUint(c.URLParams["number"], 0, 64)
+
+	j, err := js.GetByNumber(owner, repo, branch, number)
+	if err != nil {
+		log.Println("error getting job:", err)
+	}
+
+	if _, err := js.GetLogger(j).WriteTo(w); err != nil {
+		log.Println("error getting job logs:", err)
+	}
 }

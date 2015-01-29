@@ -26,10 +26,20 @@ func main() {
 			Usage:  "path to certificates for Docker TLS",
 			EnvVar: "DOCKER_CERT_PATH",
 		},
+		cli.StringFlag{
+			Name:   "db",
+			Usage:  "path to cion.db",
+			Value:  "/tmp/cion.db",
+			EnvVar: "CION_DB",
+		},
 	}
 
 	app.Action = func(c *cli.Context) {
-		cion.Run(c.String("docker"), c.String("docker-cert-path"))
+		cion.Run(
+			c.String("docker"),
+			c.String("docker-cert-path"),
+			c.String("db"),
+		)
 	}
 
 	app.Run(os.Args)

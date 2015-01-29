@@ -3,8 +3,10 @@ package cion
 import (
 	"encoding/binary"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"github.com/boltdb/bolt"
+	"io"
 )
 
 var (
@@ -37,8 +39,13 @@ type boltJobRef struct {
 	Number uint64
 }
 
-func NewBoltJobStore(db *bolt.DB) BoltJobStore {
-	return BoltJobStore{db: db}
+func NewBoltJobStore(path string) (*BoltJobStore, error) {
+	db, err := bolt.Open(path, 0600, nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return &BoltJobStore{db: db}, nil
 }
 
 func (s *BoltJobStore) GetByID(id uint64) (*Job, error) {
@@ -51,7 +58,7 @@ func (s *BoltJobStore) GetByID(id uint64) (*Job, error) {
 		}
 
 		key := Uint64ToBytes(id)
-		return json.Unmarshal(jb.Get(key), ref)
+		return json.Unmarshal(jb.Get(key), &ref)
 	})
 	if err != nil {
 		return nil, err
@@ -61,7 +68,7 @@ func (s *BoltJobStore) GetByID(id uint64) (*Job, error) {
 }
 
 func (s *BoltJobStore) GetByNumber(owner, repo, branch string, number uint64) (*Job, error) {
-	var j *Job
+	j := &Job{}
 
 	ref := boltJobRef{
 		Owner:  owner,
@@ -149,6 +156,24 @@ func (l BoltJobLogger) Write(p []byte) (int, error) {
 	return len(p), nil
 }
 
+func (l BoltJobLogger) WriteTo(w io.Writer) (int64, error) {
+	var n int64
+
+	return n, l.db.View(func(tx *bolt.Tx) error {
+		b, err := getBuckets(l.ref, tx)
+		if err != nil {
+			return err
+		}
+
+		return b.Logs.ForEach(func(key, val []byte) error {
+			c, err := w.Write(val)
+			n = n + int64(c)
+
+			return err
+		})
+	})
+}
+
 func (l BoltJobLogger) WriteStep(name string) error {
 	s := fmt.Sprintln("---", name, "---")
 	_, err := l.Write([]byte(s))
@@ -209,33 +234,65 @@ func (s *BoltJobStore) Save(j *Job) error {
 }
 
 func getBuckets(ref boltJobRef, tx *bolt.Tx) (*buckets, error) {
-	jb, err := tx.CreateBucketIfNotExists(JobsBucket)
+	var jb, ob, rb, bb, lb *bolt.Bucket
+	var err error
+
+	if tx.Writable() {
+		jb, err = tx.CreateBucketIfNotExists(JobsBucket)
+	} else {
+		jb = tx.Bucket(JobsBucket)
+	}
 	if err != nil {
 		return nil, err
+	} else if jb == nil {
+		return nil, errors.New("Jobs bucket doesn't exist")
 	}
 
-	ob, err := jb.CreateBucketIfNotExists([]byte(ref.Owner))
+	if tx.Writable() {
+		ob, err = jb.CreateBucketIfNotExists([]byte(ref.Owner))
+	} else {
+		ob = jb.Bucket([]byte(ref.Owner))
+	}
 	if err != nil {
 		return nil, err
+	} else if ob == nil {
+		return nil, errors.New("owner bucket doesn't exist for ref: " + fmt.Sprint(ref))
 	}
 
-	rb, err := ob.CreateBucketIfNotExists([]byte(ref.Repo))
+	if tx.Writable() {
+		rb, err = ob.CreateBucketIfNotExists([]byte(ref.Repo))
+	} else {
+		rb = ob.Bucket([]byte(ref.Repo))
+	}
 	if err != nil {
 		return nil, err
+	} else if rb == nil {
+		return nil, errors.New("repo bucket doesn't exist for ref: " + fmt.Sprint(ref))
 	}
 
-	bb, err := rb.CreateBucketIfNotExists([]byte(ref.Branch))
+	if tx.Writable() {
+		bb, err = rb.CreateBucketIfNotExists([]byte(ref.Branch))
+	} else {
+		bb = rb.Bucket([]byte(ref.Branch))
+	}
 	if err != nil {
 		return nil, err
+	} else if bb == nil {
+		return nil, errors.New("branch bucket doesn't exist for ref: " + fmt.Sprint(ref))
 	}
 
-	var lb *bolt.Bucket
 	if ref.Number != 0 {
 		lbn := string(ref.Number) + "_Logs"
 
-		lb, err = bb.CreateBucketIfNotExists([]byte(lbn))
+		if tx.Writable() {
+			lb, err = bb.CreateBucketIfNotExists([]byte(lbn))
+		} else {
+			lb = bb.Bucket([]byte(lbn))
+		}
 		if err != nil {
 			return nil, err
+		} else if lb == nil {
+			return nil, errors.New("logs bucket doesn't exist for ref: " + fmt.Sprint(ref))
 		}
 	}
 
