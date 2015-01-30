@@ -4,11 +4,8 @@ import "io"
 
 // JobStore write and reads jobs and job logs from persistent storage.
 type JobStore interface {
-	// GetByID gets a job by its unique ID.
-	GetByID(id uint64) (*Job, error)
-
 	// GetByNumber gets a job for the given owner/repo/branch by its number.
-	GetByNumber(owner, repo, branch string, number uint64) (*Job, error)
+	GetByNumber(owner, repo string, number uint64) (*Job, error)
 
 	// ListOwners returns a list of all the repo owners that have jobs.
 	ListOwners() ([]string, error)
@@ -16,14 +13,11 @@ type JobStore interface {
 	// ListRepos returns a list of all the repos for a given owner.
 	ListRepos(owner string) ([]string, error)
 
-	// ListBranches returns a list of all the branches for a given owner/repo.
-	ListBranches(owner, repo string) ([]string, error)
+	// List gets all the jobs for the given owner/repo.
+	List(owner, repo string) ([]*Job, error)
 
-	// List gets all the jobs for the given owner/repo/branch.
-	List(owner, repo, branch string) ([]*Job, error)
-
-	// Save persists a job to storage. If the job doesn't have an ID yet, it is assigned a
-	// unique ID and the next incrementing job number for the owner/repo/branch.
+	// Save persists a job to storage. If the job doesn't have a number yet, it is assigned the
+	// next incrementing job number for the repo.
 	Save(j *Job) error
 
 	// GetLogger gets the JobLogger to write logs for a job.

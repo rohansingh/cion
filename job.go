@@ -31,7 +31,6 @@ type JobRequest struct {
 
 // Job represents the job data that should be persisted to a JobStore.
 type Job struct {
-	ID     uint64
 	Number uint64
 
 	Owner  string

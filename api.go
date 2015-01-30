@@ -12,9 +12,8 @@ func NewJobHandler(c web.C, w http.ResponseWriter, r *http.Request) {
 	owner := c.URLParams["owner"]
 	repo := c.URLParams["repo"]
 	branch := c.URLParams["branch"]
-	sha := c.URLParams["sha"]
 
-	j := NewJob(owner, repo, branch, sha)
+	j := NewJob(owner, repo, branch, "")
 	if err := js.Save(j); err != nil {
 		log.Println("error saving job:", err)
 	}
@@ -34,10 +33,9 @@ func NewJobHandler(c web.C, w http.ResponseWriter, r *http.Request) {
 func GetJobHandler(c web.C, w http.ResponseWriter, r *http.Request) {
 	owner := c.URLParams["owner"]
 	repo := c.URLParams["repo"]
-	branch := c.URLParams["branch"]
 	number, _ := strconv.ParseUint(c.URLParams["number"], 0, 64)
 
-	j, err := js.GetByNumber(owner, repo, branch, number)
+	j, err := js.GetByNumber(owner, repo, number)
 	if err != nil {
 		log.Println("error getting job:", err)
 	}
@@ -49,10 +47,9 @@ func GetJobHandler(c web.C, w http.ResponseWriter, r *http.Request) {
 func GetLogHandler(c web.C, w http.ResponseWriter, r *http.Request) {
 	owner := c.URLParams["owner"]
 	repo := c.URLParams["repo"]
-	branch := c.URLParams["branch"]
 	number, _ := strconv.ParseUint(c.URLParams["number"], 0, 64)
 
-	j, err := js.GetByNumber(owner, repo, branch, number)
+	j, err := js.GetByNumber(owner, repo, number)
 	if err != nil {
 		log.Println("error getting job:", err)
 	}
@@ -65,9 +62,8 @@ func GetLogHandler(c web.C, w http.ResponseWriter, r *http.Request) {
 func ListJobsHandler(c web.C, w http.ResponseWriter, r *http.Request) {
 	owner := c.URLParams["owner"]
 	repo := c.URLParams["repo"]
-	branch := c.URLParams["branch"]
 
-	l, err := js.List(owner, repo, branch)
+	l, err := js.List(owner, repo)
 	if err != nil {
 		log.Println("error getting job list:", err)
 	}
@@ -90,16 +86,6 @@ func ListReposHandler(c web.C, w http.ResponseWriter, r *http.Request) {
 	l, err := js.ListRepos(c.URLParams["owner"])
 	if err != nil {
 		log.Println("error getting repos list:", err)
-	}
-
-	b, _ := json.MarshalIndent(l, "", "\t")
-	w.Write(b)
-}
-
-func ListBranchesHandler(c web.C, w http.ResponseWriter, r *http.Request) {
-	l, err := js.ListBranches(c.URLParams["owner"], c.URLParams["repo"])
-	if err != nil {
-		log.Println("error getting branch list:", err)
 	}
 
 	b, _ := json.MarshalIndent(l, "", "\t")

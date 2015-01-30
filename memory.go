@@ -9,25 +9,25 @@ import (
 // InMemoryJobStore is a mock JobStore that only stores jobs in memory and writes logs directly
 // to stdout. It is only meant to be used for testing.
 type InMemoryJobStore struct {
-	jobCounter         uint64
-	jobCounterByBranch map[string]uint64
-	jobs               map[uint64]*Job
+	jobCounter       uint64
+	jobCounterByRepo map[string]uint64
+	jobs             map[uint64]*Job
 }
 
 func NewInMemoryJobStore() *InMemoryJobStore {
 	return &InMemoryJobStore{
-		jobCounter:         0,
-		jobCounterByBranch: make(map[string]uint64),
-		jobs:               make(map[uint64]*Job),
+		jobCounter:       0,
+		jobCounterByRepo: make(map[string]uint64),
+		jobs:             make(map[uint64]*Job),
 	}
 }
 
-func (s *InMemoryJobStore) GetByID(id uint64) (*Job, error) {
-	return s.jobs[id], nil
-}
+var (
+	s JobStore = NewInMemoryJobStore()
+)
 
-func (s *InMemoryJobStore) GetByNumber(owner, repo, branch string, number uint64) (*Job, error) {
-	jobs, err := s.List(owner, repo, branch)
+func (s *InMemoryJobStore) GetByNumber(owner, repo string, number uint64) (*Job, error) {
+	jobs, err := s.List(owner, repo)
 	if err != nil {
 		return nil, err
 	}
@@ -41,11 +41,43 @@ func (s *InMemoryJobStore) GetByNumber(owner, repo, branch string, number uint64
 	return nil, nil
 }
 
-func (s *InMemoryJobStore) List(owner, repo, branch string) ([]*Job, error) {
+func (s *InMemoryJobStore) ListOwners() ([]string, error) {
+	m := make(map[string]bool)
+
+	for _, j := range s.jobs {
+		m[j.Owner] = true
+	}
+
+	l := make([]string, 0, len(m))
+	for k, _ := range m {
+		l = append(l, k)
+	}
+
+	return l, nil
+}
+
+func (s *InMemoryJobStore) ListRepos(owner string) ([]string, error) {
+	m := make(map[string]bool)
+
+	for _, j := range s.jobs {
+		if j.Owner == owner {
+			m[j.Repo] = true
+		}
+	}
+
+	l := make([]string, 0, len(m))
+	for k, _ := range m {
+		l = append(l, k)
+	}
+
+	return l, nil
+}
+
+func (s *InMemoryJobStore) List(owner, repo string) ([]*Job, error) {
 	var l []*Job
 
 	for _, j := range s.jobs {
-		if j.Owner == owner && j.Repo == repo && j.Branch == branch {
+		if j.Owner == owner && j.Repo == repo {
 			l = append(l, j)
 		}
 	}
@@ -54,7 +86,7 @@ func (s *InMemoryJobStore) List(owner, repo, branch string) ([]*Job, error) {
 }
 
 func (s *InMemoryJobStore) Save(j *Job) error {
-	if j.ID != 0 {
+	if j.Number != 0 {
 		// the job is in memory, nothing to persist
 		return nil
 	}
@@ -63,11 +95,10 @@ func (s *InMemoryJobStore) Save(j *Job) error {
 	s.jobCounter++
 	id := s.jobCounter
 
-	k := j.Owner + ":" + j.Repo + ":" + j.Branch
-	s.jobCounterByBranch[k]++
-	number := s.jobCounterByBranch[k]
+	k := j.Owner + ":" + j.Repo
+	s.jobCounterByRepo[k]++
+	number := s.jobCounterByRepo[k]
 
-	j.ID = id
 	j.Number = number
 
 	s.jobs[id] = j

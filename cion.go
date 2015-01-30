@@ -32,18 +32,17 @@ func Run(dockerEndpoint, dockerCertPath, cionDbPath string) {
 
 	api.Get("/", ListOwnersHandler)
 	api.Get("/:owner", ListReposHandler)
-	api.Get("/:owner/:repo", ListBranchesHandler)
+	api.Get("/:owner/:repo", ListJobsHandler)
 
 	repo := web.New()
 	repo.Use(middleware.SubRouter)
 
 	api.Handle("/:owner/:repo/*", repo)
 	repo.Post("/new", NewJobHandler)
-	repo.Post(regexp.MustCompile("^/commit/(?P<sha>.+)/new"), NewJobHandler)
 	repo.Post(regexp.MustCompile("^/branch/(?P<branch>.+)/new"), NewJobHandler)
-	repo.Get(regexp.MustCompile("^/branch/(?P<branch>.+)/(?P<number>[0-9]+)/log"), GetLogHandler)
-	repo.Get(regexp.MustCompile("^/branch/(?P<branch>.+)/(?P<number>[0-9]+)"), GetJobHandler)
-	repo.Get(regexp.MustCompile("^/branch/(?P<branch>.+)"), ListJobsHandler)
+	repo.Get("/:number/log", GetLogHandler)
+	repo.Get("/:number", GetJobHandler)
+	repo.Get("/", ListJobsHandler)
 
 	goji.Serve()
 }

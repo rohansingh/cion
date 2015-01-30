@@ -26,18 +26,16 @@ type BoltJobLogger struct {
 
 // buckets provides references to the various Bolt buckets where job data is stored.
 type buckets struct {
-	Jobs   *bolt.Bucket
-	Owner  *bolt.Bucket
-	Repo   *bolt.Bucket
-	Branch *bolt.Bucket
-	Logs   *bolt.Bucket
+	Jobs  *bolt.Bucket
+	Owner *bolt.Bucket
+	Repo  *bolt.Bucket
+	Logs  *bolt.Bucket
 }
 
 // boltJobRef is a reference to a job in a specific owner/repo/branch bucket.
 type boltJobRef struct {
 	Owner  string
 	Repo   string
-	Branch string
 	Number uint64
 }
 
@@ -50,32 +48,12 @@ func NewBoltJobStore(path string) (*BoltJobStore, error) {
 	return &BoltJobStore{db: db}, nil
 }
 
-func (s *BoltJobStore) GetByID(id uint64) (*Job, error) {
-	var ref boltJobRef
-
-	err := s.db.View(func(tx *bolt.Tx) error {
-		jrb, err := tx.CreateBucketIfNotExists(JobRefsBucket)
-		if err != nil {
-			return err
-		}
-
-		key := Uint64ToBytes(id)
-		return json.Unmarshal(jrb.Get(key), &ref)
-	})
-	if err != nil {
-		return nil, err
-	}
-
-	return s.GetByNumber(ref.Owner, ref.Repo, ref.Branch, ref.Number)
-}
-
-func (s *BoltJobStore) GetByNumber(owner, repo, branch string, number uint64) (*Job, error) {
+func (s *BoltJobStore) GetByNumber(owner, repo string, number uint64) (*Job, error) {
 	j := &Job{}
 
 	ref := boltJobRef{
 		Owner:  owner,
 		Repo:   repo,
-		Branch: branch,
 		Number: number,
 	}
 
@@ -86,7 +64,7 @@ func (s *BoltJobStore) GetByNumber(owner, repo, branch string, number uint64) (*
 		}
 
 		key := Uint64ToBytes(number)
-		return json.Unmarshal(b.Branch.Get(key), j)
+		return json.Unmarshal(b.Repo.Get(key), j)
 	})
 	if err != nil {
 		return nil, err
@@ -170,13 +148,12 @@ func (s *BoltJobStore) ListBranches(owner, repo string) ([]string, error) {
 	return l, nil
 }
 
-func (s *BoltJobStore) List(owner, repo, branch string) ([]*Job, error) {
+func (s *BoltJobStore) List(owner, repo string) ([]*Job, error) {
 	var l []*Job
 
 	ref := boltJobRef{
-		Owner:  owner,
-		Repo:   repo,
-		Branch: branch,
+		Owner: owner,
+		Repo:  repo,
 	}
 
 	if err := s.db.View(func(tx *bolt.Tx) error {
@@ -185,7 +162,7 @@ func (s *BoltJobStore) List(owner, repo, branch string) ([]*Job, error) {
 			return err
 		}
 
-		return b.Branch.ForEach(func(key, val []byte) error {
+		return b.Repo.ForEach(func(key, val []byte) error {
 			j := &Job{}
 
 			if len(val) == 0 {
@@ -212,7 +189,6 @@ func (s *BoltJobStore) GetLogger(j *Job) JobLogger {
 		ref: boltJobRef{
 			Owner:  j.Owner,
 			Repo:   j.Repo,
-			Branch: j.Branch,
 			Number: j.Number,
 		},
 	}
@@ -276,18 +252,15 @@ func (l BoltJobLogger) WriteStep(name string) error {
 // Save writes job data to various buckets in the Bolt database. We use this nesting pattern
 // for buckets:
 //
-//    Jobs -> (owner) -> (repo) -> (branch) -> (job number)_Logs
+//    jobs -> (owner) -> (repo) -> logs_(job number)
 //
-// The actual data for a job is saved to the bucket for its branch. The Jobs bucket contains
-// mappings from a job's unique ID to the branch where it is saved. This allows us to look up
-// jobs either by their unique ID, or by their owner/repo/branch/number combination.
-//
-// The logs for a job are saved to the (job number)_Logs bucket.
+// The actual data for a job is saved to the bucket for its repo, and its logs are stored in
+// the logs_<number> sub-bucket.
 func (s *BoltJobStore) Save(j *Job) error {
 	ref := boltJobRef{
 		Owner:  j.Owner,
 		Repo:   j.Repo,
-		Branch: j.Branch,
+		Number: j.Number,
 	}
 
 	return s.db.Update(func(tx *bolt.Tx) error {
@@ -296,24 +269,14 @@ func (s *BoltJobStore) Save(j *Job) error {
 			return err
 		}
 
-		if j.ID == 0 {
-			// assign the job an incrementing ID and number
-			id, err := b.Jobs.NextSequence()
+		if j.Number == 0 {
+			// assign the job an incrementing build number
+			n, err := b.Repo.NextSequence()
 			if err != nil {
 				return err
 			}
 
-			n, err := b.Branch.NextSequence()
-			if err != nil {
-				return err
-			}
-
-			j.ID, j.Number = id, n
-
-			// save a reference from the job's unique ID to its home bucket
-			if err := saveJobRef(j.ID, j.Number, j.Owner, j.Repo, j.Branch, tx); err != nil {
-				return err
-			}
+			j.Number = n
 		}
 
 		key := Uint64ToBytes(j.Number)
@@ -322,12 +285,12 @@ func (s *BoltJobStore) Save(j *Job) error {
 			return err
 		}
 
-		return b.Branch.Put(key, val)
+		return b.Repo.Put(key, val)
 	})
 }
 
 func getBuckets(ref boltJobRef, tx *bolt.Tx) (*buckets, error) {
-	var jb, ob, rb, bb, lb *bolt.Bucket
+	var jb, ob, rb, lb *bolt.Bucket
 	var err error
 
 	if tx.Writable() {
@@ -338,7 +301,7 @@ func getBuckets(ref boltJobRef, tx *bolt.Tx) (*buckets, error) {
 	if err != nil {
 		return nil, err
 	} else if jb == nil {
-		return nil, errors.New("Jobs bucket doesn't exist")
+		return nil, errors.New("jobs bucket doesn't exist")
 	}
 
 	if tx.Writable() {
@@ -363,24 +326,13 @@ func getBuckets(ref boltJobRef, tx *bolt.Tx) (*buckets, error) {
 		return nil, errors.New("repo bucket doesn't exist for ref: " + fmt.Sprint(ref))
 	}
 
-	if tx.Writable() {
-		bb, err = rb.CreateBucketIfNotExists([]byte(ref.Branch))
-	} else {
-		bb = rb.Bucket([]byte(ref.Branch))
-	}
-	if err != nil {
-		return nil, err
-	} else if bb == nil {
-		return nil, errors.New("branch bucket doesn't exist for ref: " + fmt.Sprint(ref))
-	}
-
 	if ref.Number != 0 {
 		lbn := "logs_" + string(ref.Number)
 
 		if tx.Writable() {
-			lb, err = bb.CreateBucketIfNotExists([]byte(lbn))
+			lb, err = rb.CreateBucketIfNotExists([]byte(lbn))
 		} else {
-			lb = bb.Bucket([]byte(lbn))
+			lb = rb.Bucket([]byte(lbn))
 		}
 		if err != nil {
 			return nil, err
@@ -390,34 +342,11 @@ func getBuckets(ref boltJobRef, tx *bolt.Tx) (*buckets, error) {
 	}
 
 	return &buckets{
-		Jobs:   jb,
-		Owner:  ob,
-		Repo:   rb,
-		Branch: bb,
-		Logs:   lb,
+		Jobs:  jb,
+		Owner: ob,
+		Repo:  rb,
+		Logs:  lb,
 	}, nil
-}
-
-func saveJobRef(id, number uint64, owner, repo, branch string, tx *bolt.Tx) error {
-	b, err := tx.CreateBucketIfNotExists(JobRefsBucket)
-	if err != nil {
-		return err
-	}
-
-	ref := boltJobRef{
-		Owner:  owner,
-		Repo:   repo,
-		Branch: branch,
-		Number: number,
-	}
-
-	key := Uint64ToBytes(id)
-	val, err := json.Marshal(ref)
-	if err != nil {
-		return err
-	}
-
-	return b.Put(key, val)
 }
 
 func Uint64ToBytes(x uint64) []byte {
