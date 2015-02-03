@@ -1,0 +1,31 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <title>cion</title>
+
+    <!-- The core React library -->
+    <script src="http://fb.me/react-0.12.2.js"></script>
+    <!-- In-browser JSX transformer, remove when pre-compiling JSX. -->
+    <script src="http://fb.me/JSXTransformer-0.12.2.js"></script>
+
+      <link rel="stylesheet" type="text/css" href="dist/main.css">
+  </head>
+  <body>
+      <script src="dist/bundle.js"></script>
+
+      <script>
+        var WebFontConfig = {
+          google: { families: [ 'Roboto:400,300,500:latin' ] }
+        };
+        (function() {
+          var wf = document.createElement('script');
+          wf.src = ('https:' == document.location.protocol ? 'https' : 'http') +
+          '://ajax.googleapis.com/ajax/libs/webfont/1/webfont.js';
+          wf.type = 'text/javascript';
+          wf.async = 'true';
+          var s = document.getElementsByTagName('script')[0];
+          s.parentNode.insertBefore(wf, s);
+        })();
+      </script>
+  </body>
+</html>

@@ -1,0 +1,35 @@
+/* material-ui */
+@import "node_modules/material-ui/src/less/scaffolding.less";
+
+@import "node_modules/material-ui/src/less/components.less";
+
+.cion {
+  .content {
+    padding: @desktop-gutter;
+    max-width: (@desktop-keyline-increment * 14);
+  }
+  
+  .sidebar {
+    border-top: solid 1px @grey-300;
+    overflow: hidden;
+  }
+
+  @media @device-medium {
+    @navWidth: (@desktop-keyline-increment * 3);
+
+    position: relative;
+
+    .sidebar {
+      border-top: none;
+      position: absolute;
+      top: 0;
+      width: @navWidth;
+    }
+
+    .content {
+      margin-left: @navWidth;
+      border-left: solid 1px @grey-300;
+      min-height: 800px;
+    }
+  }
+}

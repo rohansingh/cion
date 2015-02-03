@@ -5,6 +5,7 @@ import (
 	"github.com/zenazn/goji/web"
 	"github.com/zenazn/goji/web/middleware"
 	"log"
+	"net/http"
 	"regexp"
 )
 
@@ -43,6 +44,8 @@ func Run(dockerEndpoint, dockerCertPath, cionDbPath string) {
 	repo.Get("/:number/log", GetLogHandler)
 	repo.Get("/:number", GetJobHandler)
 	repo.Get("/", ListJobsHandler)
+
+	goji.Get("/*", http.FileServer(http.Dir("./public")))
 
 	goji.Serve()
 }

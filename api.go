@@ -26,6 +26,7 @@ func NewJobHandler(c web.C, w http.ResponseWriter, r *http.Request) {
 
 	go jr.Run()
 
+	w.Header().Set("Content-Type", "application/json")
 	b, _ := json.MarshalIndent(j, "", "\t")
 	w.Write(b)
 }
@@ -40,6 +41,7 @@ func GetJobHandler(c web.C, w http.ResponseWriter, r *http.Request) {
 		log.Println("error getting job:", err)
 	}
 
+	w.Header().Set("Content-Type", "application/json")
 	b, _ := json.MarshalIndent(j, "", "\t")
 	w.Write(b)
 }
@@ -54,6 +56,7 @@ func GetLogHandler(c web.C, w http.ResponseWriter, r *http.Request) {
 		log.Println("error getting job:", err)
 	}
 
+	w.Header().Set("Content-Type", "application/json")
 	if _, err := js.GetLogger(j).WriteTo(w); err != nil {
 		log.Println("error getting job logs:", err)
 	}
@@ -68,6 +71,7 @@ func ListJobsHandler(c web.C, w http.ResponseWriter, r *http.Request) {
 		log.Println("error getting job list:", err)
 	}
 
+	w.Header().Set("Content-Type", "application/json")
 	b, _ := json.MarshalIndent(l, "", "\t")
 	w.Write(b)
 }
@@ -78,6 +82,7 @@ func ListOwnersHandler(c web.C, w http.ResponseWriter, r *http.Request) {
 		log.Println("error getting owners list:", err)
 	}
 
+	w.Header().Set("Content-Type", "application/json")
 	b, _ := json.MarshalIndent(l, "", "\t")
 	w.Write(b)
 }
@@ -88,6 +93,7 @@ func ListReposHandler(c web.C, w http.ResponseWriter, r *http.Request) {
 		log.Println("error getting repos list:", err)
 	}
 
+	w.Header().Set("Content-Type", "application/json")
 	b, _ := json.MarshalIndent(l, "", "\t")
 	w.Write(b)
 }
