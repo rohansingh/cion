@@ -56,7 +56,7 @@ func GetLogHandler(c web.C, w http.ResponseWriter, r *http.Request) {
 		log.Println("error getting job:", err)
 	}
 
-	w.Header().Set("Content-Type", "application/json")
+	w.Header().Set("Content-Type", "text/plain")
 	if _, err := js.GetLogger(j).WriteTo(w); err != nil {
 		log.Println("error getting job logs:", err)
 	}
