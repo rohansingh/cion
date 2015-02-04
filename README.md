@@ -2,6 +2,52 @@ cion
 ===
 A commit-to-deploy system based on Docker containers.
 
+
+Build
+---
+Install Go and Node, set your `GOPATH`, and then run:
+
+    $ go get github.com/rohansingh/cion
+    $ cd $GOPATH/src/github.com/rohansingh/cion/public
+    $ npm install -g gulp
+    $ gulp
+
+This will download cion to `$GOPATH/src`, build it, and install the executable to `$GOPATH/bin`.
+
+The final steps are necessary to compile the resource bundle for the UI. This should be automated
+at some point.
+
+Run
+---
+Currently cion will only run from its source directory:
+
+    $ cd $GOPATH/src/github.com/rohansingh/cion
+    $ go install ./... && cion
+
+Note that only one instance can run at a time. Any new instances will just wait around trying to
+acquire a lock on the database file.
+
+API Examples
+---
+
+    # kick off a build of the rohan/cion branch of https://github.com/spotify/docker-client
+    curl -X POST http://localhost:8000/api/spotify/docker-client/branch/rohan/cion/new
+
+    # kick off a build of the master branch of cion
+    curl -X POST http://localhost:8000/api/rohansingh/cion/new
+
+    # get a list of all jobs for spotify/docker-client
+    curl -X GET http://localhost:8000/api/spotify/docker-client
+
+    # get a particular job by number
+    curl -X GET http://localhost:8000/api/spotify/docker-client/1
+
+    # get the logs for a particular job by number
+    curl -X GET http://localhost:8000/api/spotify/docker-client/1/log
+
+User Guide
+===
+
 Build Steps
 ---
 These are the logical steps needed to go from commit to deploy:
