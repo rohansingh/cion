@@ -132,20 +132,20 @@ func (s *BoltJobStore) List(owner, repo string) ([]*Job, error) {
 			return err
 		}
 
-		return b.Repo.ForEach(func(key, val []byte) error {
+		c := b.Repo.Cursor()
+		for key, val := c.Last(); key != nil; key, val = c.Prev() {
 			j := &Job{}
 
-			if len(val) == 0 {
-				return nil
-			}
+			if len(val) > 0 {
+				if err := json.Unmarshal(val, j); err != nil {
+					return err
+				}
 
-			if err := json.Unmarshal(val, j); err != nil {
-				return err
+				l = append(l, j)
 			}
+		}
 
-			l = append(l, j)
-			return nil
-		})
+		return nil
 	}); err != nil {
 		return nil, err
 	}
