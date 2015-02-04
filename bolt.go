@@ -118,36 +118,6 @@ func (s *BoltJobStore) ListRepos(owner string) ([]string, error) {
 	return l, nil
 }
 
-func (s *BoltJobStore) ListBranches(owner, repo string) ([]string, error) {
-	var l []string
-
-	if err := s.db.View(func(tx *bolt.Tx) error {
-		jb := tx.Bucket(JobsBucket)
-		if jb == nil {
-			return errors.New("jobs bucket doesn't exist")
-		}
-
-		ob := jb.Bucket([]byte(owner))
-		if ob == nil {
-			return errors.New("owner bucket doesn't exist")
-		}
-
-		rb := ob.Bucket([]byte(repo))
-		if rb == nil {
-			return errors.New("repo bucket doesn't exist")
-		}
-
-		return rb.ForEach(func(key, val []byte) error {
-			l = append(l, string(key))
-			return nil
-		})
-	}); err != nil {
-		return nil, err
-	}
-
-	return l, nil
-}
-
 func (s *BoltJobStore) List(owner, repo string) ([]*Job, error) {
 	var l []*Job
 
