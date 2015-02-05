@@ -32,4 +32,55 @@
       min-height: 800px;
     }
   }
+
+  .jobTable {
+    div {
+      padding: 10px;
+    }
+    table {
+      width: 100%;
+
+      thead {
+        border-bottom: solid 1px @pink-500;
+
+        th {
+          .mui-font-weight-medium;
+          .mui-text-dark-black;
+        }
+      }
+
+      td, th {
+        padding: 5px;
+      }
+
+      tbody {
+        td:first-child {
+          min-width: 3em;
+        }
+
+        tr {
+          border-bottom: solid 1px @grey-300;
+          cursor: pointer;
+
+          &:hover {
+            background-color: @light-blue-50;
+          }
+        }
+      }
+
+      tr:last-child {
+        border-bottom: 0;
+      }
+    }
+  }
+
+  .jobDetail {
+    margin-top: 10px;
+  }
+
+  iframe.log {
+    width: 100%;
+    min-height: 400px;
+    border: 0;
+  }
 }

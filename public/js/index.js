@@ -1,14 +1,16 @@
 var React = require('react'),
     request = require('superagent'),
-    mui = require('material-ui');
+    mui = require('material-ui'),
+    moment = require('moment');
 
 var Cion = React.createClass({
   loadRepos: function() {
+    var url = "/api/" + this.props.owner;
     request
-      .get("/api/" + this.props.owner)
+      .get(url)
       .end(function(err, res) {
         if (err || res.error) {
-          console.err(this.props.url, (err || res.error).toString());
+          console.error(url, (err || res.error).toString());
           return;
         }
 
@@ -19,11 +21,12 @@ var Cion = React.createClass({
   },
 
   loadJobs: function() {
+    var url = "/api/" + this.props.owner + "/" + this.props.repo;
     request
-      .get("/api/" + this.props.owner + "/" + this.props.repo)
+      .get(url)
       .end(function(err, res) {
         if (err || res.error) {
-          console.err(this.props.url, (err || res.error).toString());
+          console.error(url, (err || res.error).toString());
           return;
         }
 
@@ -100,38 +103,128 @@ var Repo = React.createClass({
   },
 });
 
-var JobTable = React.createClass({
-  render: function() {
-    var jobRowNodes = this.props.jobs.map(function (job) {
-      return (
-        <JobTable.Row job={job} />
-      )
+var JobDetail = React.createClass({
+  loadJob: function() {
+    var url = "/api/" + this.props.owner + "/" + this.props.repo + "/" + this.props.number;
+    request
+      .get(url)
+      .end(function(err, res) {
+        if (err || res.error) {
+          console.error(url, (err || res.error).toString());
+          return;
+        }
+
+        var job = res.body;
+        this.setState({
+          job: job,
+        });
+
+        if (job && job.EndedAt) {
+          clearInterval(this.state.jobInterval);
+        }
+      }.bind(this));
+  },
+
+  componentDidMount: function() {
+    this.setState({
+      jobInterval: setInterval(this.loadJob, this.props.pollInterval),
     });
 
+    this.loadJob();
+  },
+
+  componentDidUpdate: function(prevProps) {
+    if (prevProps.owner != this.props.owner ||
+        prevProps.repo != this.props.repo ||
+        prevProps.number != this.props.number) {
+      this.loadJob();
+    }
+  },
+
+  getInitialState: function() {
+    return {
+      job: null,
+      jobInterval: null,
+    };
+  },
+
+  render: function() {
+    var logUrl = "/api/" + this.props.owner + "/" + this.props.repo + "/" + this.props.number + "/log";
     return (
-      <table className="jobTable">
-        <thead>
-          <tr>
-           <th>#</th>
-           <th>Commit</th>
-           <th>Started</th>
-           <th>Ended</th>
-          </tr>
-        </thead>
-        {jobRowNodes}
-      </table>
+        <mui.Paper className="jobDetail">
+          <pre>
+            <iframe className="log" src={logUrl}></iframe>
+          </pre>
+        </mui.Paper>
+    );
+  },
+});
+
+var JobTable = React.createClass({
+  handleSelectJob: function(job) {
+    this.setState({
+      selectedJob: job,
+    });
+  },
+
+  getInitialState: function() {
+    return {
+      selectedJob: null,
+    };
+  },
+
+  render: function() {
+    var jobRowNodes = this.props.jobs.map(function(job) {
+      return (
+        <JobTable.Row job={job} onClick={this.handleSelectJob.bind(this, job)} />
+      )
+    }.bind(this));
+
+    var jobDetail = <div></div>;
+    if (this.state.selectedJob) {
+      jobDetail = <JobDetail
+        owner={this.state.selectedJob.Owner}
+        repo={this.state.selectedJob.Repo}
+        number={this.state.selectedJob.Number}
+        pollInterval={5000} />
+    }
+
+    return (
+      <div>
+        <mui.Paper className="jobTable">
+          <table>
+            <thead>
+              <tr>
+               <th>#</th>
+               <th>Commit</th>
+               <th>Started</th>
+               <th>Took</th>
+              </tr>
+            </thead>
+            <tbody>
+              {jobRowNodes}
+            </tbody>
+          </table>
+        </mui.Paper>
+
+        {jobDetail}
+      </div>
     );
   },
 });
 
 JobTable.Row = React.createClass({
   render: function() {
-    var ended = this.props.job.EndedAt || "-";
+    var started = moment(this.props.job.StartedAt).fromNow();
+
+    var ended = this.props.job.EndedAt;
+    ended = (ended) ? moment(ended).from(this.props.job.StartedAt, true) : "-";
+
     return (
-      <tr key={this.props.job.Number} className="jobTableRow">
+      <tr key={this.props.job.Number} className="jobTableRow" onClick={this.props.onClick}>
         <td>{this.props.job.Number}</td>
-        <td>{this.props.job.SHA} ({this.props.job.Branch})</td>
-        <td>{this.props.job.StartedAt}</td>
+        <td>{this.props.job.SHA.substring(0, 6)} ({this.props.job.Branch})</td>
+        <td>{started}</td>
         <td>{ended}</td>
       </tr>
     );
@@ -139,6 +232,6 @@ JobTable.Row = React.createClass({
 });
 
 React.render(
-  <Cion owner="spotify" repo="docker-client" pollInterval={2000} />,
+  <Cion owner="spotify" repo="docker-client" pollInterval={5000} />,
   document.body
 );
