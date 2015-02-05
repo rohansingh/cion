@@ -19,9 +19,11 @@ func NewJobHandler(c web.C, w http.ResponseWriter, r *http.Request) {
 	}
 
 	jr := &JobRequest{
-		Job:      j,
-		Executor: e,
-		Store:    js,
+		Job:            j,
+		Executor:       e,
+		Store:          js,
+		GitHubClientID: ghc,
+		GitHubSecret:   ghs,
 	}
 
 	go jr.Run()

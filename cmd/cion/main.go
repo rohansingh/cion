@@ -32,6 +32,16 @@ func main() {
 			Value:  "/tmp/cion.db",
 			EnvVar: "CION_DB",
 		},
+		cli.StringFlag{
+			Name:   "github-id",
+			Usage:  "github client id",
+			EnvVar: "CION_GITHUB_ID",
+		},
+		cli.StringFlag{
+			Name:   "github-secret",
+			Usage:  "github client secret",
+			EnvVar: "CION_GITHUB_SECRET",
+		},
 	}
 
 	app.Action = func(c *cli.Context) {
@@ -39,6 +49,8 @@ func main() {
 			c.String("docker"),
 			c.String("docker-cert-path"),
 			c.String("db"),
+			c.String("github-id"),
+			c.String("github-secret"),
 		)
 	}
 

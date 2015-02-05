@@ -8,6 +8,7 @@ import (
 	"gopkg.in/yaml.v2"
 	"io"
 	"log"
+	"net/http"
 	"time"
 )
 
@@ -27,6 +28,9 @@ type JobRequest struct {
 	Job      *Job
 	Executor Executor
 	Store    JobStore
+
+	GitHubClientID string
+	GitHubSecret   string
 }
 
 // Job represents the job data that should be persisted to a JobStore.
@@ -79,7 +83,19 @@ func NewJob(owner, repo, branch, sha string) *Job {
 func (r JobRequest) Run() {
 	jl := r.Store.GetLogger(r.Job)
 
-	if err := runJob(r.Job, r.Executor, r.Store, jl); err != nil {
+	var c *http.Client
+	if r.GitHubClientID != "" {
+		t := &github.UnauthenticatedRateLimitedTransport{
+			ClientID:     r.GitHubClientID,
+			ClientSecret: r.GitHubSecret,
+		}
+
+		c = t.Client()
+	}
+
+	gh := github.NewClient(c)
+
+	if err := runJob(r.Job, r.Executor, r.Store, jl, gh); err != nil {
 		log.Println("job execution error:", err)
 		io.WriteString(jl, fmt.Sprintf("ERROR: %v", err))
 	} else {
@@ -94,13 +110,11 @@ func (r JobRequest) Run() {
 	}
 }
 
-func runJob(j *Job, e Executor, s JobStore, jl JobLogger) error {
+func runJob(j *Job, e Executor, s JobStore, jl JobLogger, gh *github.Client) error {
 	jl.WriteStep("fetch sources")
 
 	if j.SHA == "" {
 		// figure out the latest commit sha for the branch
-		gh := github.NewClient(nil)
-
 		com, _, err := gh.Repositories.GetCommit(j.Owner, j.Repo, j.Branch)
 		if err != nil {
 			return err
@@ -144,7 +158,7 @@ func runJob(j *Job, e Executor, s JobStore, jl JobLogger) error {
 	}
 }
 
-func startWorkdirContainer(owner, repo, sha string, e Executor, lw io.Writer) (string, error) {
+func startWorkdirContainer(owner, repo, sha string, e Executor, jl io.Writer) (string, error) {
 	gh := github.NewClient(nil)
 	r, _, err := gh.Repositories.Get(owner, repo)
 	if err != nil {
@@ -179,7 +193,7 @@ func startWorkdirContainer(owner, repo, sha string, e Executor, lw io.Writer) (s
 	}
 
 	// wait for the container to finish fetching sources
-	err = e.Attach(wd, lw, lw)
+	err = e.Attach(wd, jl, jl)
 	if err != nil {
 		return "", err
 	}
@@ -193,7 +207,7 @@ func startWorkdirContainer(owner, repo, sha string, e Executor, lw io.Writer) (s
 	return wd, nil
 }
 
-func parseJobConfig(wd string, e Executor, lw io.Writer) (*JobConfig, error) {
+func parseJobConfig(wd string, e Executor, jl io.Writer) (*JobConfig, error) {
 	opts := RunContainerOpts{
 		Image:       GitImage,
 		Cmd:         []string{"cat", ".cion.yml"},
@@ -209,7 +223,7 @@ func parseJobConfig(wd string, e Executor, lw io.Writer) (*JobConfig, error) {
 	}
 
 	var stdout bytes.Buffer
-	if err := e.Attach(c, io.MultiWriter(&stdout, lw), lw); err != nil {
+	if err := e.Attach(c, io.MultiWriter(&stdout, jl), jl); err != nil {
 		return nil, err
 	}
 
@@ -257,7 +271,7 @@ func startServices(jc JobConfig, wd string, e Executor) (map[string]string, erro
 }
 
 func run(cc ContainerConfig, services map[string]string, wd string,
-	e Executor, lw io.Writer) error {
+	e Executor, jl io.Writer) error {
 	links := make([]string, 0, len(services))
 	for s, sc := range services {
 		links = append(links, sc+":"+s)
@@ -285,7 +299,7 @@ func run(cc ContainerConfig, services map[string]string, wd string,
 		return err
 	}
 
-	if err := e.Attach(c, lw, lw); err != nil {
+	if err := e.Attach(c, jl, jl); err != nil {
 		return err
 	}
 
