@@ -220,8 +220,17 @@ JobTable.Row = React.createClass({
     var ended = this.props.job.EndedAt;
     ended = (ended) ? moment(ended).from(this.props.job.StartedAt, true) : "-";
 
+    var statusClassName;
+    if (!this.props.job.EndedAt) {
+      statusClassName = "running";
+    } else if (this.props.job.Success) {
+      statusClassName = "success";
+    } else {
+      statusClassName = "fail";
+    }
+
     return (
-      <tr key={this.props.job.Number} className="jobTableRow" onClick={this.props.onClick}>
+      <tr key={this.props.job.Number} className={statusClassName} onClick={this.props.onClick}>
         <td>{this.props.job.Number}</td>
         <td>{this.props.job.SHA.substring(0, 6)} ({this.props.job.Branch})</td>
         <td>{started}</td>

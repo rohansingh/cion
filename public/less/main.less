@@ -62,8 +62,20 @@
           border-bottom: solid 1px @grey-300;
           cursor: pointer;
 
+          &.success {
+            background-color: @light-green-50;
+          }
+
+          &.fail {
+            background-color: @red-50;
+          }
+
+          &.running {
+            background-color: @yellow-50;
+          }
+
           &:hover {
-            background-color: @light-blue-50;
+            .mui-font-weight-medium;
           }
         }
       }
