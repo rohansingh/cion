@@ -1,6 +1,7 @@
 package cion
 
 import (
+	"fmt"
 	"github.com/zenazn/goji"
 	"github.com/zenazn/goji/bind"
 	"github.com/zenazn/goji/graceful"
@@ -11,31 +12,74 @@ import (
 	"regexp"
 )
 
-var (
-	e   Executor
-	js  JobStore
-	ghc string
-	ghs string
-)
+type Config struct {
+	Executor       Executor
+	JobStore       JobStore
+	GitHubClientID string
+	GitHubSecret   string
+}
 
-func Run(dockerEndpoint, dockerCertPath, cionDbPath, ghClientID, ghSecret string) {
+func Configure(dockerEndpoint, dockerCertPath, cionDbPath, ghClientID, ghSecret string) Config {
 	var err error
+	c := Config{}
 
-	e, err = NewDockerExecutor(dockerEndpoint, dockerCertPath)
+	c.Executor, err = NewDockerExecutor(dockerEndpoint, dockerCertPath)
 	if err != nil {
 		log.Fatalf("error initializing executor: %v", err)
 	}
 
-	js, err = NewBoltJobStore(cionDbPath)
-	if err != nil {
-		log.Fatalf("error initializing job store: %v", err)
+	if cionDbPath == "" {
+		c.JobStore = NewInMemoryJobStore()
+	} else {
+		c.JobStore, err = NewBoltJobStore(cionDbPath)
+		if err != nil {
+			log.Fatalf("error initializing job store: %v", err)
+		}
 	}
 
-	ghc = ghClientID
-	ghs = ghSecret
+	c.GitHubClientID = ghClientID
+	c.GitHubSecret = ghSecret
+
+	return c
+}
+
+func ConfigureLocal(dockerEndpoint, dockerCertPath, ghClientID, ghSecret string) Config {
+	return Configure(dockerEndpoint, dockerCertPath, "", ghClientID, ghSecret)
+}
+
+func RunLocal(path string, conf Config) {
+	j := &Job{LocalPath: path}
+
+	jr := &JobRequest{
+		Job:            j,
+		Executor:       conf.Executor,
+		Store:          conf.JobStore,
+		GitHubClientID: conf.GitHubClientID,
+		GitHubSecret:   conf.GitHubSecret,
+	}
+
+	jr.Run()
+
+	fmt.Println("---")
+	if j.Success {
+		fmt.Println("CION: job succeeded")
+	} else {
+		fmt.Println("CION: job failed")
+	}
+}
+
+func Run(conf Config) {
+	goji.Use(middleware.EnvInit)
+	goji.Use(func(c *web.C, h http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			c.Env["config"] = conf
+			h.ServeHTTP(w, r)
+		})
+	})
 
 	api := web.New()
 	api.Use(middleware.SubRouter)
+
 	goji.Handle("/api/*", api)
 
 	api.Get("/", ListOwnersHandler)

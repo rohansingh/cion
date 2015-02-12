@@ -15,6 +15,9 @@ type Executor interface {
 
 	// Kill kills a container dead.
 	Kill(id string) error
+
+	// Build builds a Docker image and returns the image name if successful.
+	Build(input io.Reader, output io.Writer) (string, error)
 }
 
 // RunContainerOpts are options for running a new container.
@@ -47,4 +50,8 @@ type RunContainerOpts struct {
 
 	// Ports is a list of container ports to expose, in the format <port>/<tcp|udp>.
 	Ports []string
+
+	// LocalImage specifies whether the image was built locally (so we shouldn't try to pull it
+	// from a remote repo).
+	LocalImage bool
 }

@@ -4,11 +4,16 @@ import (
 	"bytes"
 	"errors"
 	"fmt"
+	"github.com/docker/docker/pkg/archive"
 	"github.com/google/go-github/github"
 	"gopkg.in/yaml.v2"
 	"io"
+	"io/ioutil"
 	"log"
 	"net/http"
+	"os"
+	"path/filepath"
+	"strings"
 	"time"
 )
 
@@ -41,6 +46,8 @@ type Job struct {
 	Repo   string
 	Branch string
 	SHA    string
+
+	LocalPath string
 
 	StartedAt *time.Time
 	EndedAt   *time.Time
@@ -95,6 +102,19 @@ func (r JobRequest) Run() {
 
 	gh := github.NewClient(c)
 
+	if r.Job.LocalPath == "" && r.Job.SHA == "" {
+		// figure out the latest commit sha for the branch
+		com, _, err := gh.Repositories.GetCommit(r.Job.Owner, r.Job.Repo, r.Job.Branch)
+		if err != nil {
+			log.Println("couldn't determine SHA for job:", err)
+			io.WriteString(jl, fmt.Sprintf("ERROR: %v", err))
+			return
+		}
+
+		r.Job.SHA = *com.SHA
+		r.Store.Save(r.Job)
+	}
+
 	if err := runJob(r.Job, r.Executor, r.Store, jl, gh); err != nil {
 		log.Println("job execution error:", err)
 		io.WriteString(jl, fmt.Sprintf("ERROR: %v", err))
@@ -113,18 +133,14 @@ func (r JobRequest) Run() {
 func runJob(j *Job, e Executor, s JobStore, jl JobLogger, gh *github.Client) error {
 	jl.WriteStep("fetch sources")
 
-	if j.SHA == "" {
-		// figure out the latest commit sha for the branch
-		com, _, err := gh.Repositories.GetCommit(j.Owner, j.Repo, j.Branch)
-		if err != nil {
-			return err
-		}
+	var wd string
+	var err error
 
-		j.SHA = *com.SHA
-		s.Save(j)
+	if j.LocalPath == "" {
+		wd, err = startWorkdirContainer(j.Owner, j.Repo, j.SHA, e, jl, gh)
+	} else {
+		wd, err = startLocalWorkdirContainer(j.LocalPath, e, jl)
 	}
-
-	wd, err := startWorkdirContainer(j.Owner, j.Repo, j.SHA, e, jl)
 	if err != nil {
 		return err
 	}
@@ -158,8 +174,90 @@ func runJob(j *Job, e Executor, s JobStore, jl JobLogger, gh *github.Client) err
 	}
 }
 
-func startWorkdirContainer(owner, repo, sha string, e Executor, jl io.Writer) (string, error) {
-	gh := github.NewClient(nil)
+func startLocalWorkdirContainer(localPath string, e Executor, jl io.Writer) (string, error) {
+	sources, err := archive.Tar(localPath, archive.Gzip) // gz (old Docker versions fart on xz)
+	if err != nil {
+		return "", err
+	}
+
+	sourceArchiveName := "sources.tar.gz"
+	dockerfile := strings.Join([]string{
+		"FROM " + GitImage,
+		"COPY " + sourceArchiveName + " /",
+	}, "\n")
+
+	tempDir, err := ioutil.TempDir("", "")
+	if err != nil {
+		return "", err
+	}
+
+	dockerfilePath := filepath.Join(tempDir, "Dockerfile")
+	if err := ioutil.WriteFile(dockerfilePath, []byte(dockerfile), 0666); err != nil {
+		return "", err
+	}
+
+	sourcesFile, err := os.Create(filepath.Join(tempDir, sourceArchiveName))
+	if err != nil {
+		return "", err
+	}
+
+	_, err = io.Copy(sourcesFile, sources)
+	if err != nil {
+		return "", err
+	}
+
+	input, err := archive.Tar(tempDir, archive.Uncompressed)
+	if err != nil {
+		return "", err
+	}
+
+	image, err := e.Build(input, jl)
+	if err != nil {
+		return "", err
+	}
+
+	unzipCmd := []string{
+		"sh", "-c",
+		`gunzip -c "$SOURCES" | tar x -C "$BUILD_DIR" -f -`,
+	}
+
+	opts := RunContainerOpts{
+		Image:      image,
+		LocalImage: true,
+		Cmd:        unzipCmd,
+		Volumes: []string{
+			BuildDir,
+			ArtifactsDir,
+		},
+		Env: []string{
+			"BUILD_DIR=" + BuildDir,
+			"SOURCES=/" + sourceArchiveName,
+		},
+	}
+
+	wd, err := e.Run(opts)
+	if err != nil {
+		return "", err
+	}
+
+	// wait for the container to finish unzipping sources
+	err = e.Attach(wd, jl, jl)
+	if err != nil {
+		return "", err
+	}
+
+	if r, err := e.Wait(wd); err != nil {
+		return "", err
+	} else if r != 0 {
+		return "", errors.New("non-zero exit status when unzipping sources")
+	}
+
+	return wd, nil
+}
+
+func startWorkdirContainer(owner, repo, sha string, e Executor, jl io.Writer,
+	gh *github.Client) (string, error) {
+
 	r, _, err := gh.Repositories.Get(owner, repo)
 	if err != nil {
 		return "", err

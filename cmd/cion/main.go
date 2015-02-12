@@ -45,13 +45,32 @@ func main() {
 	}
 
 	app.Action = func(c *cli.Context) {
-		cion.Run(
-			c.String("docker"),
-			c.String("docker-cert-path"),
-			c.String("db"),
-			c.String("github-id"),
-			c.String("github-secret"),
-		)
+		dockerEndpoint := c.String("docker")
+		dockerCertPath := c.String("docker-cert-path")
+		cionDbPath := c.String("db")
+		ghClientID := c.String("github-id")
+		ghSecret := c.String("github-secret")
+
+		if !c.Args().Present() {
+			conf := cion.Configure(
+				dockerEndpoint,
+				dockerCertPath,
+				cionDbPath,
+				ghClientID,
+				ghSecret,
+			)
+			cion.Run(conf)
+		} else {
+			conf := cion.ConfigureLocal(
+				dockerEndpoint,
+				dockerCertPath,
+				ghClientID,
+				ghSecret,
+			)
+			localPath := c.Args()[0]
+
+			cion.RunLocal(localPath, conf)
+		}
 	}
 
 	app.Run(os.Args)

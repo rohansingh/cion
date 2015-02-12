@@ -22,10 +22,6 @@ func NewInMemoryJobStore() *InMemoryJobStore {
 	}
 }
 
-var (
-	s JobStore = NewInMemoryJobStore()
-)
-
 func (s *InMemoryJobStore) GetByNumber(owner, repo string, number uint64) (*Job, error) {
 	jobs, err := s.List(owner, repo)
 	if err != nil {

@@ -39,9 +39,11 @@ func (e DockerExecutor) Run(opts RunContainerOpts) (string, error) {
 		vols[v] = struct{}{}
 	}
 
-	pio := docker.PullImageOptions{Repository: opts.Image}
-	if err := e.client.PullImage(pio, docker.AuthConfiguration{}); err != nil {
-		return "", err
+	if !opts.LocalImage {
+		pio := docker.PullImageOptions{Repository: opts.Image}
+		if err := e.client.PullImage(pio, docker.AuthConfiguration{}); err != nil {
+			return "", err
+		}
 	}
 
 	ep := make(map[docker.Port]struct{}, len(opts.Ports))
@@ -102,4 +104,19 @@ func (e DockerExecutor) Wait(id string) (int, error) {
 
 func (e DockerExecutor) Kill(id string) error {
 	return e.client.KillContainer(docker.KillContainerOptions{ID: id})
+}
+
+func (e DockerExecutor) Build(input io.Reader, output io.Writer) (string, error) {
+	name := uuid.New()
+	opts := docker.BuildImageOptions{
+		Name:         name,
+		InputStream:  input,
+		OutputStream: output,
+	}
+
+	if err := e.client.BuildImage(opts); err != nil {
+		return "", err
+	} else {
+		return name, nil
+	}
 }
